@@ -1,0 +1,234 @@
+<html lang="en" manifest="fantasy-realms.appcache">
+
+<head>
+  <meta charset="utf-8">
+  <title>Fantasy Realms: App of Scoring</title>
+  <meta name="description" content="Fantasy Realms: App of Scoring">
+  <meta name="author" content="Jimmy Praet">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="msapplication-TileColor" content="#ffffff">
+  <meta name="msapplication-TileImage" content="icons/ms-icon-144x144.png">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="apple-touch-icon" sizes="57x57" href="icons/apple-icon-57x57.png">
+  <link rel="apple-touch-icon" sizes="60x60" href="icons/apple-icon-60x60.png">
+  <link rel="apple-touch-icon" sizes="72x72" href="icons/apple-icon-72x72.png">
+  <link rel="apple-touch-icon" sizes="76x76" href="icons/apple-icon-76x76.png">
+  <link rel="apple-touch-icon" sizes="114x114" href="icons/apple-icon-114x114.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="icons/apple-icon-120x120.png">
+  <link rel="apple-touch-icon" sizes="144x144" href="icons/apple-icon-144x144.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/apple-icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-icon-180x180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/android-icon-192x192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="icons/favicon-96x96.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/bootstrap.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/jquery-3.6.0.min.js"></script>
+  <script src="js/jquery.i18n.properties.min.js"></script>
+  <script src="js/bootstrap.bundle.min.js"></script>
+  <script src="js/handlebars.min-v4.7.7.js"></script>
+  <script src="js/deck.js"></script>
+  <script src="js/discard.js"></script>
+  <script src="js/hand.js"></script>
+  <script src="js/app.js"></script>
+</head>
+
+<body>
+  <script id="cards-template" type="text/x-handlebars-template">
+    {{#each suits}}
+    <div class="card">
+      <div class="card-header" role="tab" id="{{@key}}-header" data-toggle="collapse" data-target="#{{@key}}" data-parent="#cards" href="#{{@key}}" aria-expanded="false" aria-controls="{{@key}}">
+        <a>{{{i18n 'suit.' @key}}}</a>
+      </div>
+      <div id="{{@key}}" class="collapse" role="tabpanel" data-parent="#cards" aria-labelledby="{{@key}}-header">
+        <ul class="list-group">
+          {{#each this}}
+          <li class="list-group-item {{suit}}" onclick="addToView('{{id}}')"><span class="badge badge-secondary">{{strength}}</span> {{{i18n id '.name'}}}</li>
+          {{/each}}
+        </ul>
+      </div>
+    </div>
+    {{/each}}
+  </script>
+  <script id="suit-selection-template" type="text/x-handlebars-template">
+    {{#each suits}}
+    <div class="card">
+      <div class="card-header suit-selection" onclick="selectSuit('{{this}}')">
+        {{{i18n 'suit.' this}}}
+      </div>
+    </div>
+    {{/each}}
+  </script>
+  <script id="hand-template" type="text/x-handlebars-template">
+    {{#each playerCards}}
+    <div id="card-{{id}}" class="card" onclick="selectFromHand('{{id}}')">
+      <ul class="list-group">
+        <li class="list-group-item {{suit}} {{#if blanked}}blanked{{/if}}">
+          <span class="badge badge-secondary">
+            {{#if blanked}}
+              {{i18n 'label.blanked'}}
+            {{else}}
+              {{strength}}
+            {{/if}}
+          </span> 
+          {{#if impersonator}}
+            {{#if magic}}
+              {{{i18n actionData.[0] '.name'}}}
+            {{else}}
+              {{{i18n id '.name'}}}
+            {{/if}}
+          {{else}}
+            {{{i18n id '.name'}}}
+          {{/if}}
+          {{#if magic}}
+          *
+          {{/if}}
+          <span class="float-right points">{{points}}</span>
+        </li>
+        {{#if timing}}
+        <li class="list-group-item timing">
+          <b>{{{i18n 'timing.' timing}}}:</b>
+        </li>
+        {{/if}}
+        {{#if bonus}}
+        <li class="list-group-item bonus {{#if blanked}}blanked{{/if}}">
+          {{{i18n id '.bonus'}}}
+          {{#if bonusPoints}}
+          <span class="float-right bonus">+{{bonusPoints}}</span>
+          {{/if}}
+        </li>
+        {{/if}}
+        {{#if penalty}}
+        <li class="list-group-item penalty {{#if blanked}}blanked{{/if}} {{#if penaltyCleared}}cleared{{/if}}">
+          {{#if card.penalty}}
+            {{{i18n id '.penalty'}}}
+          {{else}}
+            <!-- Doppelgänger penalty -->
+            {{{i18n actionData.[0] '.penalty'}}}
+          {{/if}}
+          {{#if penaltyPoints}}
+          <span class="float-right penalty">{{penaltyPoints}}</span>
+          {{/if}}
+        </li>
+        {{/if}}
+        {{#if card.action}}
+        <li class="list-group-item bonus">
+            <span id="card-action-text-{{id}}"></span>
+            <button id="card-action-use-{{id}}" type="button" class="btn btn-sm btn-primary float-right" onclick="event.stopPropagation(); useCardAction('{{id}}');">{{{i18n 'button.use'}}}</button>
+            <button id="card-action-cancel-{{id}}" style="display: none;" type="button" class="btn btn-sm btn-primary float-right" onclick="event.stopPropagation(); cancelCardAction('{{id}}');">{{i18n 'button.cancel'}}</button>
+        </li>
+        {{/if}}
+        {{#if card.referencesPlayerCount}}
+        <li class="list-group-item bonus">
+          <span id="card-action-text-{{id}}">
+            {{i18n 'label.player-count'}} ({{../playerCount}}):
+            {{#each ../playerCounts}}
+              <button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation(); setPlayerCount({{this}});">{{this}}</button>
+            {{/each}}
+          </span>
+        </li>
+        {{/if}}
+        {{#if card.referencesDiscardArea}}
+        <li class="list-group-item bonus">
+          <button type="button" onclick="event.stopPropagation(); switchToDiscardArea('{{id}}');" class="btn btn-sm btn-primary float-right">{{i18n 'button.discard-area'}}</button>
+        </li>
+        {{/if}}
+      </ul>
+    </div>
+    {{/each}}
+  </script>
+  <script id="discard-template" type="text/x-handlebars-template">
+    <div id="discard-header">
+      <span>{{i18n 'label.discard-area'}}</span>
+      <button type="button" onclick="event.stopPropagation(); switchToHand();" class="btn btn-sm btn-primary float-right">{{i18n 'button.back-to-hand'}}</button>
+    </div>
+    {{#each discard}}
+    <div id="discard-{{id}}" class="card" onclick="removeFromDiscard('{{id}}')">
+      <ul class="list-group">
+        <li class="list-group-item {{suit}}">
+          {{i18n id '.name'}}
+        </li>
+      </ul>
+    </div>
+    {{/each}}
+  </script>
+  <div id="container">
+    <header>
+      <a href="https://wizkids.com/fantasy-realms/"><img src="img/fantasy-realms.jpg" style="height: 3rem; max-width: 100%;"></img></a>
+      <div id="header-right">
+        <div id="hand-info">
+          <span id="cardCount">0</span><span class="separator">/</span><span id="cardLimit">7</span>
+          <span id="points">000</span>
+        </div>
+        <button id="clear" type="button" class="btn btn-success" onclick="reset()">↻</button>
+      </div>
+    </header>
+    <main>
+      <div id="left">
+        <div id="cards" class="panel" role="tablist" aria-multiselectable="true"></div>
+      </div>
+      <div id="right">
+        <div id="settings" style="display: none;">
+          <img src="img/cursed-hoard.png" style="height: 3.5rem;"></img>
+          <div style="display: inline-block;">
+            <div class="custom-control custom-switch">
+              <input type="checkbox" class="custom-control-input" id="ch_items">
+              <label id="lbl_ch_items" class="custom-control-label" for="ch_items">Cursed Items</label>
+            </div>
+            <div class="custom-control custom-switch">
+              <input type="checkbox" class="custom-control-input" id="ch_suits">
+              <label id="lbl_ch_suits" class="custom-control-label" for="ch_suits">Buildings/Outsiders/Undead</label>
+            </div>
+          </div>
+          <div id="language" class="dropdown">
+            <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" id="language-selector" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              <img src="img/globe.png" style="height: 1rem;"></img>
+              <span id="selected-language">English</span>
+            </button>
+            <div class="dropdown-menu" aria-labelledby="language-selector">
+              <a id="lang-en" class="dropdown-item" href="#" onclick="selectLanguage('en')">English</a>
+              <a id="lang-de" class="dropdown-item" href="#" onclick="selectLanguage('de')">Deutsch</a>
+              <a id="lang-de" class="dropdown-item" href="#" onclick="selectLanguage('es')">Español</a>
+              <a id="lang-fr" class="dropdown-item" href="#" onclick="selectLanguage('fr')">Français</a>
+              <a id="lang-pl" class="dropdown-item" href="#" onclick="selectLanguage('pl')">Polski</a>
+              <a id="lang-pt" class="dropdown-item" href="#" onclick="selectLanguage('pt')">Português</a>
+              <a id="lang-ua" class="dropdown-item" href="#" onclick="selectLanguage('ua')">Українська</a>
+              <a id="lang-cz" class="dropdown-item" href="#" onclick="selectLanguage('cz')">Čeština</a>
+              <a id="lang-kr" class="dropdown-item" href="#" onclick="selectLanguage('kr')">한국어</a>
+              <a id="lang-ru" class="dropdown-item" href="#" onclick="selectLanguage('ru')">Русский</a>
+              <a id="lang-zh" class="dropdown-item" href="#" onclick="selectLanguage('zh')">中文</a>
+            </div>
+          </div>
+          <div id="sound">
+            <div class="custom-control custom-switch">
+              <input type="checkbox" class="custom-control-input" id="sound_state" checked>
+              <label id="sound-label" class="custom-control-label" for="sound_state">Sound</label>
+            </div>
+          </div>
+        </div>
+        <div id="hand">
+        </div>
+        <div id="discard">
+        </div>
+      </div>
+    </main>
+    <footer>
+      <div id="wizkids-logo">
+        <a href="https://wizkids.com/"><img src="img/wizkids.png" style="width: 7rem;"></img></a>
+      </div>
+      <div id="legal-text">
+        ©2021 WizKids/NECA LLC. WizKids and related marks and logos are trademarks of WizKids. All rights reserved.
+      </div>
+    </footer>
+  </div>
+</body>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js');
+  }
+</script>
+
+</html>
